@@ -19,6 +19,8 @@
   - [Create Internet Gateway](#Create-Internet-Gateway)
  
   - [Subnet Association with Route Table](#Subnet-Association-with-Route-Table)
+ 
+  - [Security Group](#Security-Group)
   
 # Terraform-Exercise
 
@@ -281,11 +283,31 @@ resource "aws_route_table_association" "a-rtb-subnet" {
 
  - Create an Internal Route Table → no external route → for database/backend subnets.
 
+#### Security Group
 
+When I deploy my virtual machine in the subnet, I want to be able to SSH into it at port 22 . As well as I want to accessing nginx web server that I deploy as a container, through the web browser so I want to open port 8080 so that I can access from the web browser
 
+First I need `vpc_id`, so I have to associate the Security Group with the VPC so that Server inside that VPC can be associated with the Security Group and VPC ID 
 
+Generally I have 2 type of rules: 
 
+ - Traffic coming in inside the VPC called `Ingress` . For example When I SSH into EC2 or Access from the browser
 
+  - The resone we have 2 Ports `from_port` and `to_port` It is bcs I can acutally configure a Range . For example If I want to open Port from 0 to 1000 I can do `from_port = 0` && and `to_port = 1000`
+
+  - `cidr_blocks` : Sources who is allowed or which IP addresses are allowed to access to the VPC
+
+  - For SSH accessing the server on SSH should be secure and not everyone allow to do it
+
+  - If my IP address is dynamic (change alot) . I can configure it as a variable and access it or reference it from the variable value instead of hard coding . So I don't have to check the terraform.tfvars into the repository bcs this is the local variables file that I ignored . Bcs everyone can have their own copy of variable file and set their own IP address
+
+ - Traffic outgoing call `egress` . The arrtribute for these are the same
+
+  - Example of Traffic leaving the VPC is :
+
+   - Installation : When I install Docker or some other tools on my Server these binaries need to be fetched from the Internet
+
+   - Fetch Image From Docker Hub or somewhere else
 
 
 
