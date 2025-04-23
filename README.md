@@ -12,9 +12,11 @@
  
   - [VPC and Subnet](#VPC-and-Subnet)
  
-  - [Route Table And Internet Gateway](#RouteTableAndInternetGateway)
+  - [Route Table And Internet Gateway](#Route-Table-And-Internet-Gateway)
  
   - [Create new Route Table](#Create-new-Route-Table)
+ 
+  - [Create Internet Gateway](#Create-Internet-Gateway)
   
 # Terraform-Exercise
 
@@ -198,6 +200,55 @@ Route table is Virtual Router in VPC . Route Table is just a set of rules that t
  - Basically I need the Internet Gateway Target in my Custom VPC so I can connect my VPC to the Internet
 
 #### Create new Route Table
+
+I will create a new Route Table with : 
+
+ - Local Target : Connect within VPC
+
+ - Internet Gateway: Connect to the Internet
+
+ - By default the entry for the VPC internal routing is configured automatically . So I just need to create the Internet Gateway route
+
+To create a Route Table `resource "aws_route_table" "myapp-route-table" {}`
+
+ - I need to give `vpc_id` where is Route Table will create from (required)
+
+ - Then I will put Route into my Route table (Internet Gateway, NAT, or Local) . Local is automatically created
+
+ - My route table will look like this :
+
+  ```
+  resource "aws_route_table" "myapp-route-table" {
+  vpc_id = aws_vpc.myapp-vpc.id
+
+    route = {
+      cidr_block = "0.0.0.0/0" ## Destination . Any IP address can access to my VPC 
+      gateway_id = aws_internet_gateway.myapp-igw.id ## This is a Internet Gateway for my Route Table 
+    }
+
+    tags = {
+      Name = "${var.env_prefix}-rtb"
+    }
+  }
+  ```
+
+But I don't have IGW yet . Now I will go and create my IGW 
+
+#### Create Internet Gateway
+
+To create Internet Gateway : `resource "aws_internet_gateway" "myapp-igw" {}`
+
+ - I need to give `vpc_id` where is IGW will create from (required)
+
+  ```
+  resource "aws_internet_gateway" "myapp-igw" {
+    vpc_id = aws_vpc.myapp-vpc.id
+  
+    tags = {
+      Name = "${var.env_prefix}-rtb"
+    }
+  }
+  ```
 
 
 
