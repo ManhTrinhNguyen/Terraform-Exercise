@@ -21,6 +21,8 @@
   - [Subnet Association with Route Table](#Subnet-Association-with-Route-Table)
  
   - [Security Group](#Security-Group)
+ 
+  - [Amazon Machine Image for EC2](#Amazon-Machine-Image-for-EC2)
   
 # Terraform-Exercise
 
@@ -348,6 +350,54 @@ resource "aws_vpc_security_group_egress_rule" "myapp-sg-egress" {
   ip_protocol = "-1"
 }
 ```
+
+#### Amazon Machine Image for EC2 
+
+**Review** : I have a VPC that has a Subnet inside . Connect VPC to Internet using Internet Gate Way and configure it in the Route Table . I also have create Security Group that open Port 22, 8080
+
+To get AWS Image for EC2 I use `data "aws_ami" "my_ami" {}`
+
+ - `ami` : Is a Operating System Image . Values of this is a ID of the image `ami-065ab11fb3d0323d`
+
+ - So Instead hard code `ami id` I will use `data` to fetch the Image ID
+
+ - To get Owners got to EC2 -> Image AMIs -> paste the ami id image that I want to get owner from. I will see the owner on the tap
+
+ - Then I have a `filter` . `filter` in data let me define the criteria for this query . Give me the most recent Image that are owned by Amazon that have the name that start with amzn2-ami-kernel (Or can be anything, any OS I like to filter) . In `filter {}` I have `name` attr that referencing which key I wants to filter on, and `values` that is a list
+
+ - `Output` the aws_ami value to test my value is correct `output "aws_ami_id" { value = data.aws_ami.latest-amazon-linux-image }` . Then I will see terraform plan to see the output object . However with output is how I can actually validate what results I can getting with this data execution . After this I can get the AMI-ID and put it in ami
+
+ - My `data "aws_ami" "my_ami" {}` look like this
+
+  ```
+  main.tf
+
+  data "aws_ami" "amazon-linux-image" {
+
+  owners = ["amazon"]
+  most_recent = true 
+
+  filter {
+    name = "name"
+    values =  ["al2023-ami-*-x86_64"]
+  }
+
+  filter {
+    name = "virtualization-type"
+    values = ["hvm"]
+    }
+  }
+
+  ---
+
+  output.tf
+
+  output "ami_id" {
+    value = data.aws_ami.amazon-linux-image.id
+  }
+  ```  
+
+
 
 
 
