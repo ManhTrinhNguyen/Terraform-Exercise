@@ -293,24 +293,61 @@ Generally I have 2 type of rules:
 
  - Traffic coming in inside the VPC called `Ingress` . For example When I SSH into EC2 or Access from the browser
 
-  - The resone we have 2 Ports `from_port` and `to_port` It is bcs I can acutally configure a Range . For example If I want to open Port from 0 to 1000 I can do `from_port = 0` && and `to_port = 1000`
+   - The resone we have 2 Ports `from_port` and `to_port` It is bcs I can acutally configure a Range . For example If I want to open Port from 0 to 1000 I can do `from_port = 0` && and `to_port = 1000`
 
-  - `cidr_blocks` : Sources who is allowed or which IP addresses are allowed to access to the VPC
+   - `cidr_blocks` : Sources who is allowed or which IP addresses are allowed to access to the VPC
 
-  - For SSH accessing the server on SSH should be secure and not everyone allow to do it
+   - For SSH accessing the server on SSH should be secure and not everyone allow to do it
 
-  - If my IP address is dynamic (change alot) . I can configure it as a variable and access it or reference it from the variable value instead of hard coding . So I don't have to check the terraform.tfvars into the repository bcs this is the local variables file that I ignored . Bcs everyone can have their own copy of variable file and set their own IP address
+   - If my IP address is dynamic (change alot) . I can configure it as a variable and access it or reference it from the variable value instead of hard coding . So I don't have to check the terraform.tfvars into the repository bcs this is the local variables file that I ignored . Bcs everyone can have their own copy of variable file and set their own IP address
 
  - Traffic outgoing call `egress` . The arrtribute for these are the same
 
-  - Example of Traffic leaving the VPC is :
+   - Example of Traffic leaving the VPC is :
 
-   - Installation : When I install Docker or some other tools on my Server these binaries need to be fetched from the Internet
+     - Installation : When I install Docker or some other tools on my Server these binaries need to be fetched from the Internet
 
-   - Fetch Image From Docker Hub or somewhere else
+     - Fetch Image From Docker Hub or somewhere else
 
+To create SG : `resource "aws_security_group" "myapp-sg" {}`
 
+```
+resource "aws_security_group" "myapp-sg" {
+  name = "myapp-sg"
+  description = "Allow inbound traffic and all outbound traffic"
+  vpc_id = aws_vpc.myapp-vpc.id 
+}
+```
 
+To create Ingress rule : `resource "aws_vpc_security_group_ingress_rule" {}`
+
+```
+resource "aws_vpc_security_group_ingress_rule" "myapp-sg-ingress-ssh" {
+  security_group_id = aws_security_group.myapp-sg.id 
+  cidr_ipv4 = var.my_ip
+  from_port = 22
+  ip_protocol = "TCP"
+  to_port = 22
+}
+
+resource "aws_vpc_security_group_ingress_rule" "myapp-sg-ingress-8080" {
+  security_group_id = aws_security_group.myapp-sg.id 
+  cidr_ipv4 = "0.0.0.0/0"
+  from_port = 8080
+  ip_protocol = "TCP"
+  to_port = 8080
+}
+```
+
+To create Egress rule : `resource "aws_vpc_security_group_egress_rule" "myapp-sg-egress" {}`
+
+```
+resource "aws_vpc_security_group_egress_rule" "myapp-sg-egress" {
+  security_group_id = aws_security_group.myapp-sg.id 
+  cidr_ipv4 = "0.0.0.0/0"
+  ip_protocol = "-1"
+}
+```
 
 
 
