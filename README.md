@@ -17,6 +17,8 @@
   - [Create new Route Table](#Create-new-Route-Table)
  
   - [Create Internet Gateway](#Create-Internet-Gateway)
+ 
+  - [Subnet Association with Route Table](#Subnet-Association-with-Route-Table)
   
 # Terraform-Exercise
 
@@ -221,7 +223,7 @@ To create a Route Table `resource "aws_route_table" "myapp-route-table" {}`
   resource "aws_route_table" "myapp-route-table" {
   vpc_id = aws_vpc.myapp-vpc.id
 
-    route = {
+    route {
       cidr_block = "0.0.0.0/0" ## Destination . Any IP address can access to my VPC 
       gateway_id = aws_internet_gateway.myapp-igw.id ## This is a Internet Gateway for my Route Table 
     }
@@ -249,6 +251,36 @@ To create Internet Gateway : `resource "aws_internet_gateway" "myapp-igw" {}`
     }
   }
   ```
+
+**Recap**: I have configured VPC and Subnet inside VPC . I am connecting VPC to Internet Gateway and then I am configureing a new Route Table that I am creating in the VPC to route all the Traffic to and from using the Internet Gateway
+
+!!! Best Practice : Create new components, instead of using default ones
+
+#### Subnet Association with Route Table
+
+I have created a Route Table inside my VPC. However I need to associate Subnet with a Route Table so that Traffic within a Subnet also can handle by Route Table 
+
+By default when I do not associate subnets to a route table they are automatically assigned or associated to the main route table in that VPC where the Subnet is running
+
+To Associate Subnet : `resource "aws_route_table_association" "a-rtb-subnet" {}`
+
+```
+resource "aws_route_table_association" "a-rtb-subnet" {
+  route_table_id = aws_route_table.myapp-route-table.id
+  subnet_id = aws_subnet.myapp-subnet.id
+}
+```
+
+**Best Practice** : is to create a new Route table instead of using a default one 
+
+**Typical Best Practice Setup:**
+
+ - Create a Public Route Table → route to Internet Gateway → associate with public subnets.
+
+ - Create a Private Route Table → route to NAT Gateway → associate with private subnets.
+
+ - Create an Internal Route Table → no external route → for database/backend subnets.
+
 
 
 
