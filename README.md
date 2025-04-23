@@ -1,5 +1,11 @@
 - [Create Git Repository for local Terraform Project](#Create-Git-Repository-for-local-Terraform-Project)
 
+- [Install Terraform](#Install-Terraform)
+
+- [Basic Terraform Structure](#Basic Terraform Structure)
+
+  - [Configure Terraform AWS Proivder](#Configure-Terraform-AWS-Proivder) 
+
 - [Automate AWS Infrastructure](#Automate-AWS-Infrastructure)
 
   - [Overview](#Overview)
@@ -28,6 +34,45 @@ Basiccally I have main.tf, providers.tf, .terraform.lock.hcl
 
  - terraform.lock.hcl file should be check in bcs this is a list of Proivders that I have installed locally with specific version
 
+## Install Terraform 
+
+Docs to install Terraform (https://developer.hashicorp.com/terraform/downloads)
+
+For Mac : 
+
+```
+brew tap hashicorp/tap
+brew install hashicorp/tap/terraform
+```
+
+## Basic Terraform Structure 
+
+<img width="600" alt="Screenshot 2025-04-23 at 11 58 49" src="https://github.com/user-attachments/assets/ba769f7c-88c7-4326-905c-4e8380194540" />
+
+#### Configure Terraform AWS Proivder 
+
+In `providers.tf`
+
+```
+terraform {
+  required_providers {
+    aws = {
+      source = "hashicorp/aws"
+      version = "5.95.0"
+    }
+  }
+}
+
+provider "aws" { 
+  region = "us-west-1"
+}
+```
+
+I can add as many as Provider I needed 
+
+Provider need my AWS Credentials in order to connect to AWS . I could have put my credentials in `prodiver "aws"` but I don't need to . Terraform will go into my ENV `~/.aws` And will take my Credetials from there . For security best practice never expose Credentials on the file 
+
+
 ## Automate AWS Infrastructure
 
 #### Overview 
@@ -55,6 +100,59 @@ To Provision AWS Infrastructure :
 **Terraform Best Pratice**: That I want to create the whole Infrastructure from sratch, I want to deploy everything that I need. And when I don't need it anymore later I can just remove it by using `terraform destroy` without touching the defaults created by AWS . 
 
 #### VPC and Subnet 
+
+To create VPC, I need to define `cidr_block` like this : 
+
+```
+resource "aws_vpc" "main" {
+  cidr_block = "10.0.0.0/16"
+
+  tag = {
+    Name: "any-name"
+  }
+}
+```
+
+I can extract value to `variables.tf` file and give value to it in `terraform.tfvars`
+
+```
+main.tf
+
+resource "aws_vpc" "my-vpc" {
+  cidr_block = var.cidr_block
+
+  tags = {
+    Name: "${var.env_prefix}-vpc"
+  }
+}
+
+----
+
+variables.tf
+
+variable "cidr_block" {}
+variable "env_prefix" {}
+
+----
+
+terraform.tfvars
+
+cidr_block = "10.0.0.0/16"
+env_prefix = "dev"
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
