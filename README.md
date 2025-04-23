@@ -101,6 +101,8 @@ To Provision AWS Infrastructure :
 
 #### VPC and Subnet 
 
+To create VPC and Subnet in AWS I need `resources "aws_vpc"` and  `resources "aws_subnet"`
+
 To create VPC, I need to define `cidr_block` like this : 
 
 ```
@@ -113,7 +115,7 @@ resource "aws_vpc" "main" {
 }
 ```
 
-I can extract value to `variables.tf` file and give value to it in `terraform.tfvars`
+I can extract value to `variables.tf` file and give value to it in `terraform.tfvars` .
 
 ```
 main.tf
@@ -139,6 +141,38 @@ terraform.tfvars
 
 cidr_block = "10.0.0.0/16"
 env_prefix = "dev"
+```
+
+To create Subnet I will define like this :
+
+ - To get VPC ID `aws_vpc.<vpc-name>.id`
+
+```
+main.tf
+
+resource "aws_subnet" "main" {
+  vpc_id     = aws_vpc.my-vpc.id # 
+  cidr_block = var.subnet_cidr_block
+  availability_zone = var.availability_zone
+
+  tags = {
+    Name = "${var.env_prefix}-subnet"
+  }
+}
+
+---
+
+variables.tf
+
+variable "subnet_cidr_block" {}
+variable "availability_zone" {}
+
+---
+
+terraform.tfvars
+
+subnet_cidr_block = "10.0.10.0/24"
+availability_zone = "us-west-1a"
 ```
 
 
