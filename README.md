@@ -2,7 +2,7 @@
 
 - [Install Terraform](#Install-Terraform)
 
-- [Basic Terraform Structure](#Basic Terraform Structure)
+- [Basic Terraform Structure](#Basic-Terraform-Structure)
 
   - [Configure Terraform AWS Proivder](#Configure-Terraform-AWS-Proivder) 
 
@@ -25,6 +25,8 @@
   - [Amazon Machine Image for EC2](#Amazon-Machine-Image-for-EC2)
  
   - [Create EC2 Instance](#Create-EC2-Instance)
+ 
+  - [Automate create SSH key Pair](#Automate-create-SSH-key-Pair)
   
 # Terraform-Exercise
 
@@ -418,6 +420,181 @@ To define specific SG : `vpc_security_group_ids = [aws_security_group.myapp-sg.i
 `associate_public_ip_address = true`. I want to be able access this from the Browser and as well as SSH into it 
 
 To define Availability Zone : `availability_zone`
+
+I need the keys-pair (.pem file) to SSH to a server . Key pair allow me to SSH into the server by creating public private key pair or ssh key pair . AWS create Private Public Key Pair and I have the private part in this file .
+
+ - To secure this file I will move it into my user .ssh folder : `mv ~/Downloads/server-key-pair-pem ~/.ssh/` and then restrict permission :`chmod 400 ~/.ssh/server-key-pair.pem`. This step is required bcs whenever I use a `.pem` doesn't a strict access aws will reject the SSH request to the server
+
+My whole code will look like this : 
+
+```
+resource "aws_vpc" "myapp-vpc" {
+  cidr_block = var.cidr_block
+
+  tags = {
+    Name: "${var.env_prefix}-vpc"
+  }
+}
+
+resource "aws_subnet" "myapp-subnet" {
+  vpc_id     = aws_vpc.myapp-vpc.id
+  cidr_block = var.subnet_cidr_block
+  availability_zone = var.availability_zone
+
+  tags = {
+    Name = "${var.env_prefix}-subnet"
+  }
+}
+
+resource "aws_route_table" "myapp-route-table" {
+  vpc_id = aws_vpc.myapp-vpc.id
+
+  route {
+    cidr_block = "0.0.0.0/0" ## Destination . Any IP address can access to my VPC 
+    gateway_id = aws_internet_gateway.myapp-igw.id ## This is a Internet Gateway for my Route Table 
+  }
+
+  tags = {
+    Name = "${var.env_prefix}-rtb"
+  }
+}
+
+resource "aws_internet_gateway" "myapp-igw" {
+  vpc_id = aws_vpc.myapp-vpc.id
+
+  tags = {
+    Name = "${var.env_prefix}-rtb"
+  }
+}
+
+resource "aws_route_table_association" "a-rtb-subnet" {
+  route_table_id = aws_route_table.myapp-route-table.id
+  subnet_id = aws_subnet.myapp-subnet.id
+}
+
+resource "aws_security_group" "myapp-sg" {
+  name = "myapp-sg"
+  description = "Allow inbound traffic and all outbound traffic"
+  vpc_id = aws_vpc.myapp-vpc.id 
+}
+
+resource "aws_vpc_security_group_ingress_rule" "myapp-sg-ingress-ssh" {
+  security_group_id = aws_security_group.myapp-sg.id 
+  cidr_ipv4 = var.my_ip
+  from_port = 22
+  ip_protocol = "TCP"
+  to_port = 22
+
+  tags = {
+    Name = "${var.env_prefix}-ingress-ssh"
+  }
+}
+
+resource "aws_vpc_security_group_ingress_rule" "myapp-sg-ingress-8080" {
+  security_group_id = aws_security_group.myapp-sg.id 
+  cidr_ipv4 = "0.0.0.0/0"
+  from_port = 8080
+  ip_protocol = "TCP"
+  to_port = 8080
+
+  tags = {
+    Name = "${var.env_prefix}-ingress-8080"
+  }
+}
+
+resource "aws_vpc_security_group_egress_rule" "myapp-sg-egress" {
+  security_group_id = aws_security_group.myapp-sg.id 
+  cidr_ipv4 = "0.0.0.0/0"
+  ip_protocol = "-1"
+
+  tags = {
+    Name = "${var.env_prefix}-egress"
+  }
+}
+
+data "aws_ami" "amazon-linux-image" {
+
+  owners = ["amazon"]
+  most_recent = true 
+
+  filter {
+    name = "name"
+    values =  ["al2023-ami-*-x86_64"]
+  }
+
+  filter {
+    name = "virtualization-type"
+    values = ["hvm"]
+  }
+}
+
+resource "aws_instance" "myapp" {
+  ami = data.aws_ami.amazon-linux-image.id
+  instance_type = var.instance_type
+  subnet_id = aws_subnet.myapp-subnet.id 
+  vpc_security_group_ids = [aws_security_group.myapp-sg.id]
+  availability_zone = var.availability_zone
+
+  associate_public_ip_address = true
+
+  key_name = "terraform-exercise"
+  tags = {
+    Name = "${var.env_prefix}-myapp"
+  }
+}
+```
+
+----
+
+```
+terraform.tfvars
+
+cidr_block = "10.0.0.0/16"
+env_prefix = "dev"
+subnet_cidr_block = "10.0.10.0/24"
+availability_zone = "us-west-1a"
+my_ip = "157.131.152.31/32"
+instance_type = "t3.micro"
+
+variables.tf
+
+variable "cidr_block" {}
+variable "env_prefix" {}
+variable "subnet_cidr_block" {}
+variable "availability_zone" {}
+variable "my_ip" {}
+variable "instance_type" {}
+```
+
+#### Automate create SSH key Pair
+
+I will use `resource "aws_key_pair" "ssh-key"` to generate key-pair 
+
+`public_key` : I need a Public Key so AWS can create the Private key pair out of that Public key value that I provide
+
+To get `public_key` : `~/.ssh/id_rsa.pub` 
+
+To use that `public_key` in Terraform I can extract that key into a `Variable` or I can use File location
+
+ - `puclic_key = file("~/.ssh/rsa.pub")` or I can set location as variable `public_key = file(var.my_public_key`) and then in `terraform.tfvars` I set the `public_key_location` variable `public_key_location = "~/.ssh/id_rsa.pub"`
+
+```
+main.tf
+
+variable public_key_location {}
+
+resource "aws_key_pair" "ssh-key" {
+  key_name = "server-key"
+  public_key = file(var.public_key_location)
+}
+```
+----
+
+```
+terraform.tfvars
+
+public_key_location = "/Users/trinhnguyen/.ssh/id_rsa.pub"
+```
 
 
 
