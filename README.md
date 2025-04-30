@@ -31,6 +31,19 @@
   - [Run entrypoint script to start Docker container](#Run-entrypoint-script-to-start-Docker-container)
  
   - [Extract to shell script](#Extract-to-shell-script)
+ 
+- [Modules](#Modules)
+
+  - [Modularize-my-project](#Modularize-my-project)
+ 
+  - [Create Module](#Create-Module)
+ 
+  - [Use the Module](#Use-the-Module)
+ 
+  - [Module Output](#Module-Output)
+ 
+  - [Create webserver Module](#Create-webserver-Module)
+
   
 # Terraform-Exercise
 
@@ -661,14 +674,305 @@ I will use file location `user_data = file("entry-script.sh")`
 
 In the same location I will create a `entry-script.sh` file
 
+## Modules 
+
+In Terraform we have concept of modules to make configuration not monolithic . So I am basically break up part of my configuration into logical groups and package them together in folders . and this folders then represent modules
+
+#### Modularize my project
+
+I will create a branch for module `git checkout -b modules`
+
+Best practice: Separate Project structure . Extract everything from main to those file
+
+ - main.tf
+
+ - variable.tf
+
+ - outputs.tf
+
+ - providers.tf
+
+I don't have to link that file I don't have to reference the `variable.tf` and `output.tf` bcs Terraform knows that these files belong together and it kind of grabs everyting and link them together
+
+And I also have the providers.tf files that will hold all of the providers which I have configured already . Eventhough I have only 1 here which is our AWS provider it is Best Pratice to use providers file in the same way .
+
+#### Create Module 
+
+Create folder call modules : `mkdir modules` 
+
+Inside modules :
+
+ - Create folders for the acutal modules : `mkdir webserver` - `mkdir subnet`
+
+ - Each module will have its own `main.tf`, `output.tf`, `providers.tf`, `variables.tf`.
+
+I will extract the whole Configuration of the networking . Grap those 3 resources (Subnet, Internet Gateway, Route table and its association with gateway). In this case I will extract those resources into `/subnet/main.tf` 
+
+`aws_internet_gateway` reference of a resource that exist in the same module . So we don't have to replace that through a variable bcs we have that resource available in the same context
+
+If anything don't have reference inside the same context I have to replace with `variable`
+
+My `/subnet/main.tf` would look like:
+
+```
+resource "aws_subnet" "myapp-subnet" {
+  vpc_id     = var.vpc_id
+  cidr_block = var.subnet_cidr_block
+  availability_zone = var.availability_zone
+
+  tags = {
+    Name = "${var.env_prefix}-subnet"
+  }
+}
+
+resource "aws_route_table" "myapp-route-table" {
+  vpc_id = var.vpc_id
+
+  route {
+    cidr_block = "0.0.0.0/0" ## Destination . Any IP address can access to my VPC 
+    gateway_id = aws_internet_gateway.myapp-igw.id ## This is a Internet Gateway for my Route Table 
+  }
+
+  tags = {
+    Name = "${var.env_prefix}-rtb"
+  }
+}
+
+resource "aws_internet_gateway" "myapp-igw" {
+  vpc_id = var.vpc_id
+
+  tags = {
+    Name = "${var.env_prefix}-rtb"
+  }
+}
+
+resource "aws_route_table_association" "a-rtb-subnet" {
+  route_table_id = aws_route_table.myapp-route-table.id
+  subnet_id = aws_subnet.myapp-subnet.id
+}
+```
+
+Now I have to define all those `variables` inside that module subnet in the `/subnet/variables.tf` . So all the variable definitions must actually be in that file.
+
+```
+variable "vpc_id" {}
+variable "subnet_cidr_block" {}
+variable "availability_zone" {}
+variable "env_prefix" {}
+```
+
+#### Use the Module
+
+The way to use that is, in `root/main.tf` I use `module "myapp-subnet" {}` . Then I need a couple of Attribute
+
+`source = "modules/subnet"` : Where this module actually living .
+
+Once source is defined now We have to pass in all those `variables` that I defined in `/subnet/variable.tf`, the value to those variables need to be provided when we are refering to module
+
+ - Previously we had all these variables already set in `root/terraform.tfvars` . Now since we use module we have to define them in the module `"myapp-subnet" {}` section .
+
+ - I can set `subnet_cidr_block = "0.0.0.0/32"` by hard coding like this OR We can also set them as a `variables subnet_cidr_block = var.subnet_cidr_block` . If I want to reference it from `root/main.tf` in the root module we need that variable defininition also in the `variables.tf`
+
+ - We are referencing a `variable` called `sunbet_cidr_block` that has to be define in the same module where `root/main.tf` is . And those `/root/variable.tf` then are set through the `terraform.tfvars` (Where I define value for all those variable)
+
+ - So this is how it work . Actual Values defined in `terraform.tfvars` -> that are set as values in `root/variables.tf` -> and then passing on those values like `var.subnet_cidr_block` to the module `"myapp-subnet"` which is also grabbing those values through variable references which also have to be find in the `subnet/variables.tf`
+
+My subnet module in root/main.tf would look like : 
+
+```
+module "myapp-subnet" {
+  source = "./modules/subnet"
+  vpc_id = aws_vpc.myapp-vpc.id
+  subnet_cidr_block = var.subnet_cidr_block
+  availability_zone = var.availability_zone
+  env_prefix = var.env_prefix
+}
+```
+
+#### Module Output
+
+To access the resources that will be created by a module in another module
+
+The first thing we need to do is output the subnet object . Kinda like exporting the subnet object so that it can be used by other modules the way we do that by using `output` component `/subnet/output.tf` like this:
+
+```
+output "subnet_id" {
+  value = aws_subnet.myapp-subnet.id
+}
+```
+
+Then to reference the `output` in `/subnet/output.tf` to `root/main.tf` I need: `module.<name-of-module>.<name-of-output-for-that-module>.id` . The code should look like this : 
+
+```
+resource "aws_instance" "myapp" {
+  subnet_id = module.myapp-subnet.subnet_id
+}
+```
+
+Now I can apply configuration change : 
+
+ - `terraform init` : Basically Terraform detects that we are referring to a module called module `"my-subnet" {}` it only tries to find and initialzi that module
+
+ - `terraform` : Acutal apply the code
+
+#### Create webserver Module
+
+We have the instance itself, key-pair that created for the Instance, we have the AMI query from the AWS which is also relevant for the Instance, and we have the Security Group, which also configures the Firewalls for the Instance
+
+In `webserver/main.tf` . We need to fix the reference to all the value like `vpc_id` . We can leave all these fixed coded values if they don't change Or we can also parameterized them if we want to pass in different values .
+
+For example: If we want to be able to decide which operating system image should be use for the Instances : `values = [var.image_name]`
+
+`subnet_id = aws_subnet.myapp-subnet-1.id` We don't have access to a module anymore bcs this module actually define outside . So we will parameterize that as well . `subnet_id = var.subnet_id`.
+
+Then I will move the `entry-script.sh` to webserver module
+
+My code should look like this : 
+
+```
+resource "aws_security_group" "myapp-sg" {
+  name = "myapp-sg"
+  description = "Allow inbound traffic and all outbound traffic"
+  vpc_id = var.vpc_id
+}
+
+resource "aws_vpc_security_group_ingress_rule" "myapp-sg-ingress-ssh" {
+  security_group_id = aws_security_group.myapp-sg.id 
+  cidr_ipv4 = var.my_ip
+  from_port = 22
+  ip_protocol = "TCP"
+  to_port = 22
+
+  tags = {
+    Name = "${var.env_prefix}-ingress-ssh"
+  }
+}
+
+resource "aws_vpc_security_group_ingress_rule" "myapp-sg-ingress-8080" {
+  security_group_id = aws_security_group.myapp-sg.id 
+  cidr_ipv4 = "0.0.0.0/0"
+  from_port = 8080
+  ip_protocol = "TCP"
+  to_port = 8080
+
+  tags = {
+    Name = "${var.env_prefix}-ingress-8080"
+  }
+}
+
+resource "aws_vpc_security_group_egress_rule" "myapp-sg-egress" {
+  security_group_id = aws_security_group.myapp-sg.id 
+  cidr_ipv4 = "0.0.0.0/0"
+  ip_protocol = "-1"
+
+  tags = {
+    Name = "${var.env_prefix}-egress"
+  }
+}
+
+data "aws_ami" "amazon-linux-image" {
+
+  owners = ["amazon"]
+  most_recent = true 
+
+  filter {
+    name = "name"
+    values =  [var.image_name]
+  }
+
+  filter {
+    name = "virtualization-type"
+    values = ["hvm"]
+  }
+}
+
+resource "aws_instance" "myapp" {
+  ami = data.aws_ami.amazon-linux-image.id
+  instance_type = var.instance_type
+  subnet_id = var.subnet_id
+  vpc_security_group_ids = [aws_security_group.myapp-sg.id]
+  availability_zone = var.availability_zone
+
+  associate_public_ip_address = true
+
+  key_name = "terraform-exercise"
 
 
+  user_data = file("${path.module}/entry-script.sh")
 
+  user_data_replace_on_change = true
+  tags = {
+    Name = "${var.env_prefix}-myapp"
+  }
+}
+```
 
+Declare all those variables in the `/webserver/variables.tf` 
 
+```
+variable "vpc_id" {}
+variable "my_ip" {}
+variable "env_prefix" {}
+variable "instance_type" {}
+variable "availability_zone" {}
+variable "subnet_id" {}
+variable "image_name" {}
+```
 
+In `/root/main.tf` . We are referencing every value either using `VAR` or module or resource name which is good pratice bcs we are not hardcoding any value .
 
+```
+module "myapp-webserver" {
+  source = "./modules/webserver"
+  vpc_id = aws_vpc.myapp-vpc.id
+  subnet_id = module.myapp-subnet.subnet_id
+  my_ip = var.my_ip
+  env_prefix = var.env_prefix
+  availability_zone = var.availability_zone
+  image_name = var.image_name
+  instance_type = var.instance_type
+}
+```
 
+We have to make sure that all those values are actually defined in our `terrform.tfvars`
+
+```
+cidr_block = "10.0.0.0/16"
+env_prefix = "dev"
+subnet_cidr_block = "10.0.10.0/24"
+availability_zone = "us-west-1a"
+my_ip = "157.131.152.31/32"
+instance_type = "t3.micro"
+image_name = "al2023-ami-*-x86_64"
+```
+
+in `/webserver/output.tf`:
+
+```
+output "ec2_puclic_ip" {
+  value = aws_instance.myapp.public_ip
+}
+```
+
+in `root/output.tf`:
+
+```
+output "ec2_public_ip" {
+  value = module.myapp-webserver.ec2_puclic_ip
+}
+```
+
+So now we have updated all of our files, so that the references to all the different modules, resources and outputs should not have any issues when we try to run Terraform commands.
+
+Run `terraform plan` to preview
+
+`terraform apply` : To acutal apply the code 
+
+#### Wrap up 
+
+We created modules . We are logically grouped similar resources that belong together into own module while still creating one of the resources outside . We also learn how to use those modules how to reference them and pass on different values that we configured inside the modules themselves . As well as we will learn how to reference the resource object inside the modules itself using this module reference and then basically just access any attribute of that object
+
+We have all all the resources parameterzied which is the **best practice** . So all the values are set in one place in the tf vats file . If something changes we just adjust it in one place
 
 
 
