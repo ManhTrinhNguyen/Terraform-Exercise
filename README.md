@@ -23,6 +23,8 @@
   - [Security Group](#Security-Group)
  
   - [Amazon Machine Image for EC2](#Amazon-Machine-Image-for-EC2)
+ 
+  - [Create EC2 Instance](#Create-EC2-Instance)
   
 # Terraform-Exercise
 
@@ -395,9 +397,27 @@ To get AWS Image for EC2 I use `data "aws_ami" "my_ami" {}`
   output "ami_id" {
     value = data.aws_ami.amazon-linux-image.id
   }
-  ```  
+  ```
 
+#### Create EC2 Instance
 
+Now I have `aws_ami` image ID I can create EC2 Instance from that 
+
+I can use `resource "aws_instance" ""` to create instance 
+
+`ami` : Is my Instance image 
+
+`instance_type`: I can choose `instance_type` like how much Resources I want 
+
+Other Attribute is Optional like subnet id and security group id etc ... If I do not specify them explicitly, then the EC2 instance that we define here will acutally launched in a default VPC in one of the AZ in that Region in one of the Subnet . However I have create my own VPC and this EC2 end up in my VPC and be assign the Security Group that I created in my VPC .
+
+To define specific Subnet : `subnet_id = aws_subnet.myapp-subnet-1.id`
+
+To define specific SG : `vpc_security_group_ids = [aws_security_group.myapp-sg.id]`  To start the instance in 
+
+`associate_public_ip_address = true`. I want to be able access this from the Browser and as well as SSH into it 
+
+To define Availability Zone : `availability_zone`
 
 
 
