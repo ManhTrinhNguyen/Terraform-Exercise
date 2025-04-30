@@ -27,6 +27,10 @@
   - [Create EC2 Instance](#Create-EC2-Instance)
  
   - [Automate create SSH key Pair](#Automate-create-SSH-key-Pair)
+ 
+  - [Run entrypoint script to start Docker container](#Run-entrypoint-script-to-start-Docker-container)
+ 
+  - [Extract to shell script](#Extract-to-shell-script)
   
 # Terraform-Exercise
 
@@ -595,6 +599,82 @@ terraform.tfvars
 
 public_key_location = "/Users/trinhnguyen/.ssh/id_rsa.pub"
 ```
+
+#### Run entrypoint script to start Docker container
+
+Now I have EC2 server is running and I have Networking configured . However there is nothing running on that Server yet . No Docker install, No container Deployed
+
+I want to ssh to server, install docker, deploy container automatically . So i will create configuration for it too
+
+With Terraform there is a way to execute commands on a server on EC2 server at the time of creation . As soon as Intances ready. I can define a set of commands that Terraform will execute on the Server . And the way to do that is using Attr `user_data`
+
+`user_data` is like an Entry point script that get executeed on EC2 instance whenever the server is instantiated . I can provide the script using multiline string and I can define it using this syntax
+
+My `user_data` would look like this inside `resources aws_instance`:
+
+```
+resource "aws_instance" "myapp" {
+  ami = data.aws_ami.amazon-linux-image.id
+  instance_type = var.instance_type
+  subnet_id = aws_subnet.myapp-subnet.id 
+  vpc_security_group_ids = [aws_security_group.myapp-sg.id]
+  availability_zone = var.availability_zone
+
+  associate_public_ip_address = true
+
+  key_name = "terraform-exercise"
+
+
+  user_data = <<EOF
+    ### Inside this block I can define the whole shell script . Just like I would write it in a normal script file, in a bash file
+                #!/bin/bash
+                sudo yum update -y && sudo yum install -y docker
+                sudo systemctl start docker
+                sudo usermod -aG docker ec2_user
+                docker run -p 8080:80 nginx
+                EOF
+
+  user_data_replace_on_change = true
+  tags = {
+    Name = "${var.env_prefix}-myapp"
+  }
+}
+```
+
+ - `-y`: Stand for automatic confirmation
+
+ - sudo systemctl start docker : Start docker
+
+ - sudo usermod -aG docker ec2_user : Make user can execute docker command without using sudo
+
+ - So above is a user_data command that will run everytime the instance gets launched . I just need to configure the Terraform file, so that each time I change this user data file, The Instance actually get destroyed and re-created.
+
+ - If I check AWS_Provider docs and check for `aws_intance` I can see the `user_data` input filed has an optional flag `user_data_replace_on_change` . I want enable this flag, I want to ensure that my Instance is destroyed and recreated when I modify this user_data field . This way I know that my user data script is going to run each time on the clean, brand-new instance, which will ge me a consistent State
+
+!!! NOTE : user_data will only executed once . However bcs I add `user_data_replace_on_change = true` now if the `user_data` script itself changes this will force the recreation of the of the instance and re-execution of the user data script . But again this is only if something in the `user_data` script itself changes. If changes everything else like tags , key_name .... In this case it not going to force the recreation of the instance
+
+#### Extract to shell script
+
+Of course if I have longer and configuring a lot of different stuff I can also rerference it from a file .
+
+I will use file location `user_data = file("entry-script.sh")`
+
+In the same location I will create a `entry-script.sh` file
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
