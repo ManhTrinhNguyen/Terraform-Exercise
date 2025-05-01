@@ -49,6 +49,8 @@
   - [Steps to Provision EKS](#Steps-to-Provision-EKS)
  
   - [Create VPC](#Create-VPC)
+ 
+  - [Create EKS Cluster and Worker Nodes](#Create-EKS-Cluster-and-Worker-Nodes)
 
   
 # Terraform-Exercise
@@ -1104,6 +1106,47 @@ private_subnet_tags = {
   "kubernetes.io/role/internal-elb" = 1
 }
 ```
+
+#### Create EKS Cluster and Worker Nodes
+
+Now I have VPC already configured . I will create EKS Cluster
+
+I will create `touch eks-cluster.tf` file 
+
+I will use the EKS `module` . This will basically create all the resources needed in order to create cluster as well as any Worker Nodes that I configure for it and provision some of the part provision some of the part of Kubernetes (https://registry.terraform.io/modules/terraform-aws-modules/eks/aws/latest)
+
+First I add `cluster_name` and `cluster_version`
+
+Then I need to set `subnet_ids` . This is a list of Subnet that I want the Worker Nodes to be started in . So I have created a VPC with 6 Subnets (3 Private and 3 Public) .
+
+ - Private : Where I want my Workload to be scheduled .
+
+ - Public : are for external resources like Load Balancer of AWS for external connectivity
+
+ - I will reference private subnet for `subnets_id = module.myapp-vpc.private_subnets` . For Security reason bcs It is not exposed to Internet
+
+Then I can set `tags` for EKS Cluster itself . I don't have to set some required text like I did in the vpc module
+
+ - If I am running my Microservice Application in this Cluster then I can just pass in the name of my Microservice Application, just to know which Cluster is running in which Application
+
+In addition to Subnet or the Private Subnets where workloads will run we also need to provide a VPC id . I can also reference it through module: `module.myapp-vpc.vpc_id`
+
+Then I need to configure how I want my Worker Nodes to run or what kind of Worker Nodes I want to connect to this Cluster :
+
+ - In this case I will use Nodegroup semi-managed by AWS `eks_managed_node_groups` . The Value of this Attribute is a map of EKS managed NodeGroup definitions .
+
+NOTE : Also Now I have to create the Role for the Cluster and for the Node Group as well . This eks module acutally define those roles and how they should be created . So we don't have to configure them
+
+My code will look like this  :
+
+
+
+
+
+
+
+
+
 
 
 
