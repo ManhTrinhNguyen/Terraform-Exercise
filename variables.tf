@@ -4,3 +4,4 @@ variable "subnet_cidr_block" {}
 variable "availability_zone" {}
 variable "my_ip" {}
 variable "instance_type" {}
+variable "ssh_private_key_location" {}
