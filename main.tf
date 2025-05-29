@@ -1,6 +1,8 @@
 resource "aws_vpc" "myapp-vpc" {
   cidr_block = var.cidr_block
 
+  enable_dns_hostnames = true
+
   tags = {
     Name: "${var.env_prefix}-vpc"
   }
@@ -118,18 +120,66 @@ resource "aws_instance" "myapp-1" {
   #   command = "ansible-playbook --inventory ${self.public_ip}, --private-key ${var.ssh_private_key_location} --user ec2-user deploy-docker-new-user-with-Terraform.yaml"
   # }
   tags = {
-    Name = "${var.env_prefix}-myapp-2"
+    Name = "${var.env_prefix}-production-1"
+  }
+}
+
+resource "aws_instance" "myapp-2" {
+  ami = data.aws_ami.amazon-linux-image.id
+  instance_type = var.instance_type
+  subnet_id = aws_subnet.myapp-subnet.id 
+  vpc_security_group_ids = [aws_security_group.myapp-sg.id]
+  availability_zone = var.availability_zone
+
+  associate_public_ip_address = true
+
+  key_name = "ansible"
+
+  user_data_replace_on_change = true
+
+  # Using Local Exec 
+  # provisioner "local-exec" { 
+  #   working_dir = "../Ansible"
+  #   command = "ansible-playbook --inventory ${self.public_ip}, --private-key ${var.ssh_private_key_location} --user ec2-user deploy-docker-new-user-with-Terraform.yaml"
+  # }
+  tags = {
+    Name = "${var.env_prefix}-production-2"
+  }
+}
+resource "aws_instance" "myapp-3" {
+  ami = data.aws_ami.amazon-linux-image.id
+  instance_type = "t3.small"
+  subnet_id = aws_subnet.myapp-subnet.id 
+  vpc_security_group_ids = [aws_security_group.myapp-sg.id]
+  availability_zone = var.availability_zone
+
+
+  associate_public_ip_address = true
+
+  key_name = "ansible"
+
+  user_data_replace_on_change = true
+
+  
+
+  # Using Local Exec 
+  # provisioner "local-exec" { 
+  #   working_dir = "../Ansible"
+  #   command = "ansible-playbook --inventory ${self.public_ip}, --private-key ${var.ssh_private_key_location} --user ec2-user deploy-docker-new-user-with-Terraform.yaml"
+  # }
+  tags = {
+    Name = "dev"
   }
 }
 
 # Using null_resource 
-resource "null_resource" "configure-server" {
-  triggers = {
-    trigger = aws_instance.myapp-1.public_ip
-  }
+# resource "null_resource" "configure-server" {
+#   triggers = {
+#     trigger = aws_instance.myapp-1.public_ip
+#   }
 
-  provisioner "local-exec" {
-    working_dir = "../Ansible"
-    command = "ansible-playbook --inventory ${aws_instance.myapp-1.public_ip}, --private-key ${var.ssh_private_key_location} --user ec2-user deploy-docker-new-user-with-Terraform.yaml"
-  }
-}
+#   provisioner "local-exec" {
+#     working_dir = "../Ansible"
+#     command = "ansible-playbook --inventory ${aws_instance.myapp-1.public_ip}, --private-key ${var.ssh_private_key_location} --user ec2-user deploy-docker-new-user-with-Terraform.yaml"
+#   }
+# }
