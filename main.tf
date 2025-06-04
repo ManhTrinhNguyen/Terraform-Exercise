@@ -124,28 +124,28 @@ resource "aws_instance" "myapp-1" {
   }
 }
 
-resource "aws_instance" "myapp-2" {
-  ami = data.aws_ami.amazon-linux-image.id
-  instance_type = var.instance_type
-  subnet_id = aws_subnet.myapp-subnet.id 
-  vpc_security_group_ids = [aws_security_group.myapp-sg.id]
-  availability_zone = var.availability_zone
+# resource "aws_instance" "myapp-2" {
+#   ami = data.aws_ami.amazon-linux-image.id
+#   instance_type = var.instance_type
+#   subnet_id = aws_subnet.myapp-subnet.id 
+#   vpc_security_group_ids = [aws_security_group.myapp-sg.id]
+#   availability_zone = var.availability_zone
 
-  associate_public_ip_address = true
+#   associate_public_ip_address = true
 
-  key_name = "ansible"
+#   key_name = "ansible"
 
-  user_data_replace_on_change = true
+#   user_data_replace_on_change = true
 
-  # Using Local Exec 
-  # provisioner "local-exec" { 
-  #   working_dir = "../Ansible"
-  #   command = "ansible-playbook --inventory ${self.public_ip}, --private-key ${var.ssh_private_key_location} --user ec2-user deploy-docker-new-user-with-Terraform.yaml"
-  # }
-  tags = {
-    Name = "${var.env_prefix}-ansible"
-  }
-}
+#   # Using Local Exec 
+#   # provisioner "local-exec" { 
+#   #   working_dir = "../Ansible"
+#   #   command = "ansible-playbook --inventory ${self.public_ip}, --private-key ${var.ssh_private_key_location} --user ec2-user deploy-docker-new-user-with-Terraform.yaml"
+#   # }
+#   tags = {
+#     Name = "${var.env_prefix}-ansible"
+#   }
+# }
 
 
 # resource "aws_instance" "myapp-3" {
